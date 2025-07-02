@@ -1,38 +1,27 @@
-import chromium from "chrome-aws-lambda";
-import puppeteer from "puppeteer-core";
+import fetch from "node-fetch";
 
 export default async function handler(req, res) {
   if (req.method !== "GET") {
     return res.status(405).send("Método não permitido");
   }
 
-  let browser = null;
-
   try {
-    const executablePath = await chromium.executablePath;
-
-    browser = await puppeteer.launch({
-      args: chromium.args,
-      defaultViewport: chromium.defaultViewport,
-      executablePath: executablePath,
-      headless: chromium.headless,
+    const response = await fetch("https://agenciabrasil.ebc.com.br/rss/economia/feed.xml", {
+      headers: {
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/138.0.0.0 Safari/537.36",
+        "Accept": "application/rss+xml, application/xml"
+      }
     });
 
-    const page = await browser.newPage();
-    await page.setUserAgent("Mozilla/5.0 (Windows NT 10.0; Win64; x64)");
-
-    const response = await page.goto("https://agenciabrasil.ebc.com.br/rss/economia/feed.xml", {
-      waitUntil: "networkidle0",
-      timeout: 15000,
-    });
+    if (!response.ok) {
+      return res.status(response.status).send("Erro ao buscar o RSS: " + response.statusText);
+    }
 
     const xml = await response.text();
-    await browser.close();
 
     res.setHeader("Content-Type", "application/rss+xml");
     res.status(200).send(xml);
   } catch (e) {
-    if (browser) await browser.close();
     res.status(500).send("Erro ao buscar RSS: " + e.message);
   }
 }
